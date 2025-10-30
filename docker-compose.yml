@@ -5,7 +5,13 @@ services:
       - "5000:5000"
   airlineshub:
     build: ./airlineshub
+    ports:
+      - "5001:5001"
   exchange:
     build: ./exchange
+    ports:
+      - "5002:5002"
   fidelity:
     build: ./fidelity
+    ports:
+      - "5003:5003"
