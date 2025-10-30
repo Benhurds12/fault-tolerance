@@ -8,7 +8,7 @@ O objetivo é simular uma arquitetura de **microsserviços REST**, desenvolvida 
 ## Visão Geral do Sistema
 
 O sistema é composto por **quatro serviços independentes**, cada um com responsabilidades específicas.  
-O serviço principal (**IMDTravel**) orquestra a comunicação entre os demais, simulando o processo de compra de passagens aéreas.
+O serviço principal (**IMDTravel**) ministra a comunicação entre os demais, simulando o processo de compra de passagens aéreas.
 
 | Serviço | Função | Endpoints |
 |----------|--------|-----------|
@@ -16,6 +16,12 @@ O serviço principal (**IMDTravel**) orquestra a comunicação entre os demais, 
 | **AirlinesHub** | Gerencia os dados e confirma a venda de voos. | `GET /flight`, `POST /sell` |
 | **Exchange** | Retorna taxa de câmbio (USD → BRL), gerada aleatoriamente entre 5 e 6. | `GET /exchange` |
 | **Fidelity** | Calcula e registra bônus de fidelidade com base no valor da compra. | `POST /bonus` |
+
+---
+## Grupo
+- **Elon Arkell Freire Bezerra**
+- **Jose Ben Hur Nascimento de Oliveira** 
+- **Luís Henrique Melo Scalabrin**
 
 ---
 
@@ -28,12 +34,16 @@ O serviço principal (**IMDTravel**) orquestra a comunicação entre os demais, 
 
 ---
 
-## 🐳 Execução com Docker (recomendado)
+## Execução com Docker (recomendado)
 
 ### 1. Clonar o repositório
 ```bash
 git clone https://github.com/Benhurds12/fault-tolerance.git
+```
+```bash
 cd fault-tolerance
+```
+```bash
 docker-compose up --build -d
 ```
 
@@ -51,4 +61,5 @@ docker-compose up --build -d
 
 5. **IMDTravel** → `Fidelity /bonus` (envia bônus ao usuário) 
 
-6. **IMDTravel** → Retorna resposta final ao cliente ✅  
+6. **IMDTravel** → Retorna resposta final ao cliente
+
