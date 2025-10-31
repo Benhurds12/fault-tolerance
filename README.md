@@ -14,7 +14,7 @@ O serviço principal (**IMDTravel**) ministra a comunicação entre os demais, s
 |----------|--------|-----------|
 | **IMDTravel** | Serviço principal que orquestra as requisições e simula a compra da passagem. | `POST /buyTicket` |
 | **AirlinesHub** | Gerencia os dados e confirma a venda de voos. | `GET /flight`, `POST /sell` |
-| **Exchange** | Retorna taxa de câmbio (USD → BRL), gerada aleatoriamente entre 5 e 6. | `GET /exchange` |
+| **Exchange** | Retorna taxa de câmbio (USD → BRL), gerada aleatoriamente entre 5 e 6. | `GET /convert` |
 | **Fidelity** | Calcula e registra bônus de fidelidade com base no valor da compra. | `POST /bonus` |
 
 ---
@@ -62,4 +62,5 @@ docker-compose up --build -d
 5. **IMDTravel** → `Fidelity /bonus` (envia bônus ao usuário) 
 
 6. **IMDTravel** → Retorna resposta final ao cliente
+
 
