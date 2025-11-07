@@ -55,7 +55,7 @@ docker-compose up --build -d
 
 2. **IMDTravel** → `AirlinesHub /flight` (consulta dados do voo)  
 
-3. **IMDTravel** → `Exchange /exchange` (obtém taxa de câmbio)  
+3. **IMDTravel** → `Exchange /convert` (obtém taxa de câmbio)  
 
 4. **IMDTravel** → `AirlinesHub /sell` (confirma venda e gera ID de transação)  
 
@@ -63,4 +63,11 @@ docker-compose up --build -d
 
 6. **IMDTravel** → Retorna resposta final ao cliente
 
+## Respectivas portas das Requisições
+
+1. `/buyTicket` → http://localhost:5000/buyTicket (Content-Type) (application/json) {"flight": "AA123","day": "2025-10-30","user": "example"}
+2. `/flight` → http://localhost:5001/flight?flight=AA123&day=2025-10-30 (com parâmetro pro header)
+3. `/convert` → http://localhost:5002/convert?convert (sem parâmetros)
+4. `/sell` → http://localhost:5001/sell (Content-Type) (application/json) {"flight": "AA123","day": "2025-10-30"}
+5. `/bonus` → http://localhost:5003/bonus (Content-Type) (application/json) {"user": "name","amount": 200}
 
