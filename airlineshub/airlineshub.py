@@ -16,11 +16,17 @@ def get_flight():
 def sell_ticket():
     #Tempo
     if simulate_failure(0.1):
-        print("Simulated TIME failure")
+        print("Simulated TIME/DELAY failure on Request 3 (/sell)")
         time.sleep(5)  # simulando timeout
-        return jsonify(error='Failure occurred: Timeout'), 504
+        return jsonify({
+            'Success': False,
+            "Error": "Timeout Request 3"
+        }), 504
     else:
-        return jsonify(transaction_id=random.randint(1000, 9999)), 200
+        return jsonify({
+            'Success': True,
+            'transaction_id': random.randint(1000, 9999)
+        }), 200
 
 def simulate_failure(probability):
     return random.random() < probability
