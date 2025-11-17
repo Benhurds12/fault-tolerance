@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import random
 import requests
 from collections import deque
+import time
 app = Flask(__name__)
 
 DEFAULT_RATE = 5.5
@@ -48,14 +49,11 @@ def buy_ticket():
             print(f"Tentativa {attempt + 1}/{MAX_RETRIES_FLIGHT} falhou para /flight: {e}")
             is_flight_failure = True
             
-            # 2. Só aplicar o backoff se houver mais tentativas
             if attempt < MAX_RETRIES_FLIGHT - 1:
                 print("Aplicando backoff e tentando novamente...")
                 time.sleep(0.5 * (attempt + 1)) 
     
-    # --- Verifica o resultado das tentativas do Voo ---
     if is_flight_failure:
-        # 3. Ajustar a mensagem de erro
         if MAX_RETRIES_FLIGHT > 1:
             error_message = 'Serviço /flight indisponível após múltiplas tentativas.'
         else:
@@ -91,17 +89,17 @@ def buy_ticket():
         else:
             return jsonify(success=False, error='Serviço de câmbio falhou e tolerância a falhas está desligada'), 504
 
-        try:
-            sell_response = requests.post(
-                'http://airlineshub:5001/sell',
-                params={'flight': flight, 'day': day},
-                timeout=2
-            )
-        except requests.exceptions.Timeout:
-            if ft:
-                return jsonify(success=False, error='AirlinesHub took more than 2 seconds (Request 3)'), 504
-            else:
-                raise
+    try:
+        sell_response = requests.post(
+            'http://airlineshub:5001/sell',
+            params={'flight': flight, 'day': day},
+            timeout=2
+        )
+    except requests.exceptions.Timeout:
+        if ft:
+            return jsonify(success=False, error='AirlinesHub took more than 2 seconds (Request 3)'), 504
+        else:
+            raise
 
     sell_response.raise_for_status()
     sell_json = sell_response.json()
