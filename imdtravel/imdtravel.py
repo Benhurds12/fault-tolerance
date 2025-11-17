@@ -98,14 +98,19 @@ def buy_ticket():
                 timeout=2
             )
         except requests.exceptions.Timeout:
-            return jsonify(success=False, error='AirlinesHub took more than 2 seconds (Request 3)'), 504
+            if ft:
+                return jsonify(success=False, error='AirlinesHub took more than 2 seconds (Request 3)'), 504
+            else:
+                raise
 
     sell_response.raise_for_status()
     sell_json = sell_response.json()
 
-        if not sell_json.get('Success', False):
+    if not sell_json.get('Success', False):
+        if ft:
             return jsonify(success=False, error='Error during ticket selling (Request 3)', details=sell_json), 504
-
+        else:
+            raise
     transaction_id = sell_json.get('transaction_id')
 
     bonus_resp = requests.post('http://fidelity:5003/bonus', json={'user': user, 'amount': round(flight_data.get('value', 0))}, timeout=2)
