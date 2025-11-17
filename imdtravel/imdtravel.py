@@ -1,24 +1,52 @@
 from flask import Flask, request, jsonify
 import random
 import requests
-
+from collections import deque
 app = Flask(__name__)
+
+DEFAULT_RATE = 5.5
+successful_rates = deque([DEFAULT_RATE] * 10, maxlen=10)
 
 @app.route('/buyTicket', methods=['POST'])
 def buy_ticket():
+    ft = True
     data = request.json
     flight = data.get('flight')
     day = data.get('day')
     user = data.get('user')
-    
+    ft = data.get('ft', True)
     try:
         flight_resp = requests.get('http://airlineshub:5001/flight', params={'flight': flight, 'day': day}, timeout=2)
         flight_resp.raise_for_status()
         flight_data = flight_resp.json()
 
-        exchange_resp = requests.get('http://exchange:5002/convert', timeout=2)
-        exchange_resp.raise_for_status()
-        exchange_rate = exchange_resp.json().get('rate')
+        exchange_rate = None
+        is_exchange_failure = False
+        try:
+            exchange_resp = requests.get('http://exchange:5002/convert', timeout=2)
+            exchange_resp.raise_for_status() 
+            rate_data = exchange_resp.json()
+            proposed_rate = rate_data.get('rate')
+
+            if proposed_rate is None or proposed_rate < 0:
+                print("Falha de lógica: Serviço de câmbio retornou taxa inválida.")
+                is_exchange_failure = True
+            else:
+                exchange_rate = proposed_rate
+                successful_rates.append(exchange_rate)
+                print(f"Taxa de câmbio obtida com sucesso: {exchange_rate}")
+
+        except requests.exceptions.RequestException as e:
+            print(f"Falha de rede: Serviço de câmbio falhou: {e}")
+            is_exchange_failure = True
+        
+        if is_exchange_failure:
+            if ft:
+                avg_rate = sum(successful_rates) / len(successful_rates)
+                exchange_rate = avg_rate
+                print(f"TOLERÂNCIA A FALHAS ATIVADA: Usando taxa média: {exchange_rate}")
+            else:
+                return jsonify(success=False, error='Serviço de câmbio falhou e tolerância a falhas está desligada'), 504
 
         try:
             sell_response = requests.post(
@@ -49,7 +77,8 @@ def buy_ticket():
         'sell_response': sell_json,
         'exchange_rate': exchange_rate,
         'transaction_id': transaction_id,
-        'bonus_credited': bonus
+        'bonus_credited': bonus,
+        'fault_tolerance_applied': (is_exchange_failure and ft)
     }
 
     return jsonify(success=True, transaction_id=transaction_id, debug=debug), 200
