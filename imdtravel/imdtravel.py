@@ -91,20 +91,20 @@ def buy_ticket():
         else:
             return jsonify(success=False, error='Serviço de câmbio falhou e tolerância a falhas está desligada'), 504
 
-    try:
-        sell_response = requests.post(
-            'http://airlineshub:5001/sell',
-            params={'flight': flight, 'day': day},
-            timeout=2
-        )
-    except requests.exceptions.Timeout:
-        return jsonify(success=False, error='AirlinesHub took more than 2 seconds (Request 3)'), 504
+        try:
+            sell_response = requests.post(
+                'http://airlineshub:5001/sell',
+                params={'flight': flight, 'day': day},
+                timeout=2
+            )
+        except requests.exceptions.Timeout:
+            return jsonify(success=False, error='AirlinesHub took more than 2 seconds (Request 3)'), 504
 
     sell_response.raise_for_status()
     sell_json = sell_response.json()
 
-    if not sell_json.get('Success', False):
-        return jsonify(success=False, error='Error during ticket selling (Request 3)', details=sell_json), 504
+        if not sell_json.get('Success', False):
+            return jsonify(success=False, error='Error during ticket selling (Request 3)', details=sell_json), 504
 
     transaction_id = sell_json.get('transaction_id')
 
