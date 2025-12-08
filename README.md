@@ -65,9 +65,16 @@ docker-compose up --build -d
 
 ## Respectivas portas das Requisições
 
-1. `/buyTicket` → http://localhost:5000/buyTicket (Content-Type) (application/json) {"flight": "AA123","day": "2025-10-30","user": "example"}
+1. `/buyTicket` → http://localhost:5000/buyTicket (Content-Type) (application/json) {"flight": "AA123","day": "2025-10-30","user": "example","ft": "true"}
 2. `/flight` → http://localhost:5001/flight?flight=AA123&day=2025-10-30 (com parâmetro pro header)
 3. `/convert` → http://localhost:5002/convert?convert (sem parâmetros)
 4. `/sell` → http://localhost:5001/sell (Content-Type) (application/json) {"flight": "AA123","day": "2025-10-30"}
 5. `/bonus` → http://localhost:5003/bonus (Content-Type) (application/json) {"user": "name","amount": 200}
+
+## Execução do K6 para testes
+
+1. `cd k6` → Abrir a pasta do k6
+2. `k6 run compare_ft.js` → Compara comportamento **FT=True vs FT=False**. Mostra a diferença real de disponibilidade e resiliência.
+3. `k6 run load_test.js` → Executa um **load test gradual**, aumentando usuários aos poucos para medir estabilidade.
+4. `k6 run stress_test.js` → Executa um **stress test extremo**, aplicando picos de carga para encontrar limites e gargalos.
 
