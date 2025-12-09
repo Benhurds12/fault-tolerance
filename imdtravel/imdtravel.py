@@ -15,13 +15,18 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+# --- Configurações Globais ---
 DEFAULT_RATE = 5.5
 successful_rates = deque([DEFAULT_RATE] * 10, maxlen=10)
-log_lock = threading.Lock()
-rates_lock = threading.Lock()
+
+# Locks para garantir Thread Safety
+log_lock = threading.Lock()   # Protege o arquivo log.txt
+rates_lock = threading.Lock() # Protege a lista de taxas de câmbio
+
+# --- Worker (Store and Forward) ---
 def background_retry_worker():
     """
-    Roda em background. Tenta limpar o log a cada 5 segundos.
+    Roda em background. Verifica o log a cada 5 segundos para reprocessar falhas.
     """
     while True:
         sleep(5) 
@@ -55,18 +60,18 @@ def background_retry_worker():
                 amount = float(amount_str)
                 bonus_data = {'user': user_id, 'amount': round(amount)}
                 
-                # Tenta enviar
-                # logging.info(f"Worker: Reenviando {user_id}...") 
+                # Tenta enviar novamente para o Fidelity
                 bonus_response = requests.post('http://fidelity:5003/bonus', json=bonus_data, timeout=2)
                 bonus_response.raise_for_status()
                 
                 logging.info(f"Worker: SUCESSO! Recuperado envio para {user_id} [OK]")
                 processed_count += 1
                 
-            except Exception as e:
-                # logging.warning(f"Worker: Ainda falhou para {user_id}. Manterá na fila.")
+            except Exception:
+                # Se falhar novamente, mantém na lista para a próxima tentativa
                 lines_to_keep.append(line)
 
+        # Atualiza o arquivo de log
         if processed_count > 0:
             with log_lock:
                 with open("log.txt", "w") as file:
@@ -75,19 +80,22 @@ def background_retry_worker():
         else:
             logging.info(f"--- WORKER FALHOU: O serviço Fidelity continua fora do ar. Tentará novamente em 5s. ---")
 
-# Inicia o worker
+# Inicia o worker assim que o app arranca
 retry_thread = threading.Thread(target=background_retry_worker, daemon=True)
 retry_thread.start()
 
+
+# --- Rotas da Aplicação ---
 @app.route('/buyTicket', methods=['POST'])
 def buy_ticket():
-    ft = True
+    # Parse dos dados
     data = request.json
     flight = data.get('flight')
     day = data.get('day')
     user = data.get('user')
-    ft = data.get('ft', True)
+    ft = data.get('ft', True) # Default: True (Com tolerância a falhas)
     
+    # Variáveis de resposta/debug
     flight_data = None
     exchange_rate = None
     transaction_id = None
@@ -95,7 +103,9 @@ def buy_ticket():
     bonus_status = "Not Attempted"
     is_exchange_failure = False
 
-    # 1. Compra de Voo
+    # ---------------------------------------------------------
+    # 1. Compra de Voo (Com Retry)
+    # ---------------------------------------------------------
     MAX_RETRIES_FLIGHT = 3 if ft else 1 
     is_flight_failure = False
 
@@ -108,14 +118,13 @@ def buy_ticket():
             )
             flight_resp.raise_for_status() 
             flight_data = flight_resp.json()
-            # logging.info(f"Voo obtido na tentativa {attempt + 1}")
             is_flight_failure = False
-            break 
+            break # Sucesso, sai do loop
         except requests.exceptions.RequestException as e:
             logging.warning(f"Tentativa {attempt + 1} falhou para voo: {e}")
             is_flight_failure = True
             if attempt < MAX_RETRIES_FLIGHT - 1:
-                sleep(0.5 * (attempt + 1)) 
+                sleep(0.5 * (attempt + 1)) # Backoff simples
     
     if is_flight_failure:
         error_msg = 'Serviço /flight indisponível.'
@@ -123,7 +132,9 @@ def buy_ticket():
 
     flight_value = flight_data.get('value', 1000)
 
-    # 2. Câmbio
+    # ---------------------------------------------------------
+    # 2. Câmbio (Com Sliding Window Cache + Lock)
+    # ---------------------------------------------------------
     try:
         exchange_resp = requests.get('http://exchange:5002/convert', timeout=2)
         exchange_resp.raise_for_status() 
@@ -150,25 +161,47 @@ def buy_ticket():
         else:
             return jsonify(success=False, error='Câmbio falhou e FT desligada'), 504
 
-    # 3. Venda
+    # ---------------------------------------------------------
+    # 3. Venda (Com Fail Fast para Latência)
+    # ---------------------------------------------------------
+    
+    # timeout dinâmico para permitir testes de comparação
+    # FT ON: 2s (Fail Fast - aborta se lento)
+    # FT OFF: 15s (Permissivo - sofre com a lentidão de 5s do serviço)
+    request_timeout = 2 if ft else 15
+
     try:
         sell_response = requests.post(
             'http://airlineshub:5001/sell',
             params={'flight': flight, 'day': day},
-            timeout=2
+            timeout=request_timeout
         )
         sell_response.raise_for_status()
         sell_json = sell_response.json()
-    except Exception:
-         if ft:
-            return jsonify(success=False, error='Erro no AirlinesHub /sell'), 504
-         raise
+
+    except requests.exceptions.Timeout:
+        # Se cair aqui e FT=True, o Fail Fast funcionou (abortou em 2s)
+        if ft:
+            logging.error("Timeout Fail-Fast (>2s) acionado no AirlinesHub.")
+            return jsonify(success=False, error='Timeout Fail-Fast (>2s)'), 504
+        else:
+            # Se FT=False e cair aqui, significa que demorou mais que 15s (improvável no teste)
+            raise
+
+    except requests.exceptions.RequestException:
+        # Outros erros de conexão
+        if ft:
+            return jsonify(success=False, error='Erro de conexão no AirlinesHub /sell'), 504
+        raise
 
     if not sell_json.get('Success', False):
-         return jsonify(success=False, error='Erro na venda', details=sell_json), 504
+         return jsonify(success=False, error='Erro na venda (Recusado)', details=sell_json), 504
+    
     transaction_id = sell_json.get('transaction_id')
 
-    # 4. Bonificação 
+    # ---------------------------------------------------------
+    # 4. Bonificação (Com Store and Forward)
+    # ---------------------------------------------------------
     message = ""
     try:
         bonus_resp = requests.post(
@@ -182,7 +215,6 @@ def buy_ticket():
         
     except requests.exceptions.RequestException:
         if ft:
-            #LOG CONFIRMA QUE ESTE BLOCO RODOU
             logging.warning(f"Fidelity indisponível. Salvando {user} no log para processamento posterior.")
             
             with log_lock:
@@ -195,6 +227,7 @@ def buy_ticket():
             message = "Operação realizada, mas bonificação falhou (FT=False)."
             bonus_status = "Failed (FT Disabled)"
 
+    # Dados para Debug e Validação no K6
     debug = {
         'flight_data': flight_data,
         'exchange_rate': exchange_rate,
