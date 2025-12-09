@@ -77,4 +77,7 @@ docker-compose up --build -d
 2. `k6 run compare_ft.js` → Compara comportamento **FT=True vs FT=False**. Mostra a diferença real de disponibilidade e resiliência.
 3. `k6 run load_test.js` → Executa um **load test gradual**, aumentando usuários aos poucos para medir estabilidade.
 4. `k6 run stress_test.js` → Executa um **stress test extremo**, aplicando picos de carga para encontrar limites e gargalos.
+5. `k6 run -e FT=true test_graceful.js` Executa o teste de latência com a Tolerância a Falhas Ativada. Valida a estratégia de Fail Fast, verificando se o sistema aborta conexões lentas dentro do limite de segurança (~2s).
+6. `k6 run -e FT=false test_graceful.js` Executa o teste de latência com a Tolerância a Falhas Desativada. Simula um cenário de degradação onde o sistema fica bloqueado pela lentidão do serviço externo (~5s), comprovando a falta de resiliência.
+
 
