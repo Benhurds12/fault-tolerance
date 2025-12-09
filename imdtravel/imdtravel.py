@@ -18,7 +18,7 @@ logging.basicConfig(
 DEFAULT_RATE = 5.5
 successful_rates = deque([DEFAULT_RATE] * 10, maxlen=10)
 log_lock = threading.Lock()
-
+rates_lock = threading.Lock()
 def background_retry_worker():
     """
     Roda em background. Tenta limpar o log a cada 5 segundos.
@@ -129,14 +129,24 @@ def buy_ticket():
         exchange_resp.raise_for_status() 
         rate_data = exchange_resp.json()
         exchange_rate = rate_data.get('rate')
-        successful_rates.append(exchange_rate)
+        
+        # Protege a escrita na memória compartilhada
+        with rates_lock:
+            successful_rates.append(exchange_rate)
+            
     except requests.exceptions.RequestException:
         is_exchange_failure = True
     
     if is_exchange_failure:
         if ft:
-            exchange_rate = sum(successful_rates) / len(successful_rates) if successful_rates else DEFAULT_RATE
-            logging.warning(f"Câmbio falhou. Usando taxa média: {exchange_rate}")
+            # Protege a leitura da memória compartilhada para o cálculo
+            with rates_lock:
+                if successful_rates:
+                    exchange_rate = sum(successful_rates) / len(successful_rates)
+                else:
+                    exchange_rate = DEFAULT_RATE
+            
+            logging.warning(f"Câmbio falhou. Usando taxa média segura: {exchange_rate}")
         else:
             return jsonify(success=False, error='Câmbio falhou e FT desligada'), 504
 
